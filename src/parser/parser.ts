@@ -29,10 +29,14 @@ enum StaticLexemeType {
   MATH_DEC = 'MATH_DEC',
   MATH_MUL_ASSIGN = 'MATH_MUL_ASSIGN',
   MATH_DIV_ASSIGN = 'MATH_DIV_ASSIGN',
+  EXPRESSION_DELIMITER = 'EXPRESSION_DELIMITER',
 }
 
 enum DynamicLexemeType {
   IDENTIFIER = 'IDENTIFIER',
+  STRING_LITERAL = 'STRING_LITERAL',
+  NUMBER_LITERAL = 'NUMBER_LITERAL',
+  FIELD_ACCESS = 'FIELD_ACCESS',
 }
 
 const staticLexMatch = {
@@ -55,6 +59,7 @@ const staticLexMatch = {
   [StaticLexemeType.MATH_DIV_ASSIGN]: '/=',
   [StaticLexemeType.MATH_INC]: '++',
   [StaticLexemeType.MATH_DEC]: '--',
+  [StaticLexemeType.EXPRESSION_DELIMITER]: ';',
 };
 
 type LexemeNode =
@@ -62,11 +67,21 @@ type LexemeNode =
       type: StaticLexemeType;
       pos: Position;
     }
+  | IdentifierNode
   | {
-      type: DynamicLexemeType.IDENTIFIER;
+      type:
+        | DynamicLexemeType.STRING_LITERAL
+        | DynamicLexemeType.NUMBER_LITERAL
+        | DynamicLexemeType.FIELD_ACCESS;
       value: string;
       pos: Position;
     };
+
+type IdentifierNode = {
+  type: DynamicLexemeType.IDENTIFIER;
+  value: string;
+  pos: Position;
+};
 
 const staticLexBackMatch = Object.fromEntries(
   Object.entries(staticLexMatch).map(([type, text]) => [text, type]),
@@ -80,7 +95,7 @@ export function parseJs(code: string) {
   let lex: LexemeNode | undefined;
 
   while ((lex = getNextLexemeNode(code, point))) {
-    console.log('Lex:', lex.type);
+    console.log('Lex:', lex.type, (lex as any).value);
     point.charIndex = lex.pos.charIndex + lex.pos.charLength;
     skipEmptySpace(code, point);
   }
@@ -94,10 +109,16 @@ export function parseJs(code: string) {
 }
 
 function getNextLexemeNode(code: string, point: Point): LexemeNode | undefined {
+  if (point.charIndex >= code.length) {
+    return undefined;
+  }
+
   const rest = code.substring(point.charIndex);
   const char = code.charAt(point.charIndex);
 
-  if (/^[(){}[\]]$/.test(char)) {
+  console.log('Parse:', rest.split('\n')[0]);
+
+  if (/^[;(){}[\]]$/.test(char)) {
     return {
       type: staticLexBackMatch[char],
       pos: {
@@ -115,9 +136,7 @@ function getNextLexemeNode(code: string, point: Point): LexemeNode | undefined {
     const type = staticLexBackMatch[expression];
 
     if (!type) {
-      throw new Error(
-        `Invalid symbols at: ${rest.split('\n')[0].substring(0, 10)}`,
-      );
+      throw parsingError(rest);
     }
 
     return {
@@ -129,6 +148,90 @@ function getNextLexemeNode(code: string, point: Point): LexemeNode | undefined {
     };
   }
 
+  const identifierNode = parseIdentifier(code, point);
+  if (identifierNode) {
+    return identifierNode;
+  }
+
+  if (char === "'" || char === '"') {
+    const stringStart = rest.substring(1);
+
+    let stringMatch: RegExpMatchArray | null = null;
+
+    if (char === "'") {
+      stringMatch = stringStart.match(/^([^\n]*)(?<!\\)'/);
+    } else if (char === '"') {
+      stringMatch = stringStart.match(/^([^\n]*)(?<!\\)"/);
+    }
+
+    if (!stringMatch) {
+      throw parsingError(rest);
+    }
+
+    const stringValue = stringMatch[1];
+
+    return {
+      type: DynamicLexemeType.STRING_LITERAL,
+      value: stringValue,
+      pos: {
+        charIndex: point.charIndex,
+        charLength: stringValue.length + 2,
+      },
+    };
+  }
+
+  if (char === '.') {
+    if (/\d/.test(rest.charAt(1))) {
+      const valueRest = rest.substring(1);
+
+      const numberMatch = valueRest.match(/^\d+/);
+      const numberString = numberMatch![0];
+
+      return {
+        type: DynamicLexemeType.NUMBER_LITERAL,
+        value: `0.${numberString}`,
+        pos: {
+          charIndex: point.charIndex,
+          charLength: 1 + numberString.length,
+        },
+      };
+    }
+
+    const nextPoint = getNextPoint(code, {
+      charIndex: point.charIndex + 1,
+    });
+
+    if (!nextPoint) {
+      throw parsingError(rest);
+    }
+
+    const identifierNode = parseIdentifier(code, nextPoint);
+
+    if (!identifierNode) {
+      throw parsingError(rest);
+    }
+
+    return {
+      type: DynamicLexemeType.FIELD_ACCESS,
+      value: identifierNode.value,
+      pos: {
+        charIndex: point.charIndex,
+        charLength:
+          identifierNode.pos.charIndex -
+          point.charIndex +
+          identifierNode.pos.charLength,
+      },
+    };
+  }
+
+  throw parsingError(rest);
+}
+
+function parseIdentifier(
+  code: string,
+  point: Point,
+): IdentifierNode | undefined {
+  const rest = code.substring(point.charIndex);
   const identifierMatch = rest.match(/^[\w_][\w\d_]*/);
 
   if (identifierMatch) {
@@ -147,12 +250,29 @@ function getNextLexemeNode(code: string, point: Point): LexemeNode | undefined {
   return undefined;
 }
 
+function parsingError(code: string): Error {
+  return new Error(
+    `Invalid symbols at: ${code.split('\n')[0].substring(0, 10)}`,
+  );
+}
+
+function getNextPoint(code: string, point: Point): Point | undefined {
+  let charIndex = point.charIndex;
+
+  while (charIndex < code.length && /\s/.test(code.charAt(charIndex))) {
+    charIndex++;
+  }
+
+  return {
+    charIndex,
+  };
+}
+
 function skipEmptySpace(code: string, point: Point) {
-  while (
-    point.charIndex < code.length &&
-    /\s/.test(code.charAt(point.charIndex))
-  ) {
-    point.charIndex++;
+  const nextPoint = getNextPoint(code, point);
+
+  if (nextPoint) {
+    point.charIndex = nextPoint.charIndex;
   }
 }
 
@@ -186,7 +306,7 @@ function assertText(code: string, point: Point, test: RegExp): string {
 }
 
 function parseDefVarStatement(code: string, point: Point, defType: string) {
-  const varName = parseIdentifier(code, point);
+  const varName = parseIdentifier2(code, point);
 
   assertText(code, point, /^=\s/);
   skipEmptySpace(code, point);
@@ -206,7 +326,7 @@ function getLine(code: string, point: Point) {
   return code.substring(point.charIndex, nextNewLineIndex);
 }
 
-function parseIdentifier(code: string, point: Point) {
+function parseIdentifier2(code: string, point: Point) {
   const line = getLine(code, point);
 
   const identifierMatch = line.match(/^[\w_$][\w_$\d]*\b/);
