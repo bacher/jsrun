@@ -2,25 +2,12 @@
   "name": "jsrun",
   "version": "0.1.0",
   "private": true,
-  "dependencies": {
-    "@testing-library/jest-dom": "^5.16.4",
-    "@testing-library/react": "^13.3.0",
-    "@testing-library/user-event": "^13.5.0",
-    "@types/jest": "^27.5.2",
-    "@types/node": "^16.11.38",
-    "@types/react": "^18.0.10",
-    "@types/react-dom": "^18.0.5",
-    "react": "^18.1.0",
-    "react-dom": "^18.1.0",
-    "react-scripts": "5.0.1",
-    "typescript": "^4.7.2",
-    "web-vitals": "^2.1.4"
-  },
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
     "test": "react-scripts test",
-    "eject": "react-scripts eject"
+    "cli": "ts-node --project tsconfig.node.json src/main.ts",
+    "cli:dev": "ts-node --project tsconfig.node.json --logError src/main.ts"
   },
   "eslintConfig": {
     "extends": [
@@ -40,7 +27,24 @@
       "last 1 safari version"
     ]
   },
+  "dependencies": {
+    "@testing-library/jest-dom": "^5.16.4",
+    "@testing-library/react": "^13.3.0",
+    "@testing-library/user-event": "^13.5.0",
+    "@types/jest": "^27.5.2",
+    "@types/node": "^16.11.38",
+    "@types/react": "^18.0.10",
+    "@types/react-dom": "^18.0.5",
+    "lodash": "^4.17.21",
+    "react": "^18.1.0",
+    "react-dom": "^18.1.0",
+    "react-scripts": "5.0.1",
+    "typescript": "^4.7.2",
+    "web-vitals": "^2.1.4"
+  },
   "devDependencies": {
-    "prettier": "^2.6.2"
+    "@types/lodash": "^4.14.182",
+    "prettier": "^2.6.2",
+    "ts-node": "^10.8.1"
   }
 }
