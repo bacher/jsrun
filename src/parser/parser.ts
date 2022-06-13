@@ -97,7 +97,7 @@ type AstFunctionStatementNode = {
   body: AstStatementNode[];
 };
 
-type AstSourceFileNode = {
+export type AstSourceFileNode = {
   type: AstNodeType.SOURCE_FILE;
   statements: AstStatementNode[];
 };
