@@ -1,5 +1,3 @@
-import fs from 'fs';
-
 import {
   DynamicLexemeType,
   getNextLexemeNode,
@@ -34,6 +32,7 @@ enum AstNodeType {
   STRING_LITERAL = 'STRING_LITERAL',
   SEQUENTIAL = 'SEQUENTIAL',
   FUNCTION_STATEMENT = 'FUNCTION_STATEMENT',
+  SOURCE_FILE = 'SOURCE_FILE',
 }
 
 type AstNode =
@@ -98,6 +97,11 @@ type AstFunctionStatementNode = {
   body: AstStatementNode[];
 };
 
+type AstSourceFileNode = {
+  type: AstNodeType.SOURCE_FILE;
+  statements: AstStatementNode[];
+};
+
 enum DefType {
   VAR = 'VAR',
   CONST = 'CONST',
@@ -110,7 +114,7 @@ const defVarMatch: Record<string, DefType | undefined> = {
   const: DefType.CONST,
 };
 
-export function parseJs(code: string) {
+export function parseJs(code: string): AstSourceFileNode {
   const point: Point = {
     charIndex: 0,
   };
@@ -135,10 +139,10 @@ export function parseJs(code: string) {
     }
   }
 
-  const programJson = JSON.stringify(statements, null, 2);
-
-  // console.log('Program:', programJson);
-  fs.writeFileSync('out/program.ast.json', programJson);
+  return {
+    type: AstNodeType.SOURCE_FILE,
+    statements,
+  };
 }
 
 function parseStatement(code: string, point: Point): AstStatementNode {

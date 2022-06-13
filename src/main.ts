@@ -1,16 +1,12 @@
+import fs from 'fs';
+
 import { parseJs } from './parser/parser';
 
-parseJs(`const a = 'Hello';
-let b;
-var c;
-var k = "world";
+const sourceCode = fs.readFileSync('example/program.js', 'utf-8');
 
-console.log(a);
+const program = parseJs(sourceCode);
 
-function sayHello(text) {
-  console.log("Hello");
-  console.log(text);
-}
+const programJson = JSON.stringify(program.statements, null, 2);
 
-sayHello('Kek');
-`);
+// console.log('Program:', programJson);
+fs.writeFileSync('example/program.js.ast.json', programJson);
