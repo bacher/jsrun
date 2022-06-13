@@ -7,4 +7,10 @@ var k = "world";
 
 console.log(a);
 
+function sayHello(text) {
+  console.log("Hello");
+  console.log(text);
+}
+
+sayHello('Kek');
 `);
