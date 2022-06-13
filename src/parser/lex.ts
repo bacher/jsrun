@@ -22,10 +22,11 @@ export enum StaticLexemeType {
   MATH_DEC = 'MATH_DEC',
   MATH_MUL_ASSIGN = 'MATH_MUL_ASSIGN',
   MATH_DIV_ASSIGN = 'MATH_DIV_ASSIGN',
-  EXPRESSION_DELIMITER = 'EXPRESSION_DELIMITER',
+  STATEMENT_DELIMITER = 'STATEMENT_DELIMITER',
+  LIST_DELIMITER = 'LIST_DELIMITER',
 }
 
-enum DynamicLexemeType {
+export enum DynamicLexemeType {
   IDENTIFIER = 'IDENTIFIER',
   STRING_LITERAL = 'STRING_LITERAL',
   NUMBER_LITERAL = 'NUMBER_LITERAL',
@@ -52,7 +53,8 @@ const staticLexMatch = {
   [StaticLexemeType.MATH_DIV_ASSIGN]: '/=',
   [StaticLexemeType.MATH_INC]: '++',
   [StaticLexemeType.MATH_DEC]: '--',
-  [StaticLexemeType.EXPRESSION_DELIMITER]: ';',
+  [StaticLexemeType.STATEMENT_DELIMITER]: ';',
+  [StaticLexemeType.LIST_DELIMITER]: ',',
 };
 
 type IdentifierNode = {
