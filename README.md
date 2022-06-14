@@ -1,5 +1,10 @@
 # JsRun
 
+Handmade Javascript runtime engine (parser + executor)
+
+The purpose of this project is to learn and have fun.
+Disclaimer: absolutely not fo production use.
+
 ## Available Scripts
 
 In the project directory, you can run:
