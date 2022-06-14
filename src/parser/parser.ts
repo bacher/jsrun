@@ -30,9 +30,11 @@ enum AstNodeType {
   FIELD_ACCESS = 'FIELD_ACCESS',
   CALL = 'CALL',
   STRING_LITERAL = 'STRING_LITERAL',
+  NUMBER_LITERAL = 'NUMBER_LITERAL',
   SEQUENTIAL = 'SEQUENTIAL',
   FUNCTION_STATEMENT = 'FUNCTION_STATEMENT',
   SOURCE_FILE = 'SOURCE_FILE',
+  OBJECT_LITERAL = 'OBJECT_LITERAL',
 }
 
 type AstNode =
@@ -42,8 +44,10 @@ type AstNode =
   | AstIdentifierNode
   | AstCallNode
   | AstStringLiteralNode
+  | AstNumberLiteralNode
   | AstSequentialNode
-  | AstFunctionStatementNode;
+  | AstFunctionStatementNode
+  | AstObjectLiteralNode;
 
 type AstDefineVariableNode = {
   type: AstNodeType.DEFINE_VARIABLE;
@@ -59,7 +63,11 @@ type AstExpressionNode = {
 
 type AstStatementNode = {
   type: AstNodeType.STATEMENT;
-  body: AstDefineVariableNode | AstExpressionNode | AstFunctionStatementNode;
+  body:
+    | AstDefineVariableNode
+    | AstExpressionNode
+    | AstFunctionStatementNode
+    | AstObjectLiteralNode;
 };
 
 type AstIdentifierNode = {
@@ -84,6 +92,11 @@ type AstStringLiteralNode = {
   value: string;
 };
 
+type AstNumberLiteralNode = {
+  type: AstNodeType.NUMBER_LITERAL;
+  value: string;
+};
+
 type AstSequentialNode = {
   type: AstNodeType.SEQUENTIAL;
   left: AstNode;
@@ -95,6 +108,11 @@ type AstFunctionStatementNode = {
   functionName: string;
   arguments: AstIdentifierNode[];
   body: AstStatementNode[];
+};
+
+type AstObjectLiteralNode = {
+  type: AstNodeType.OBJECT_LITERAL;
+  fields: any;
 };
 
 export type AstSourceFileNode = {
@@ -264,6 +282,18 @@ function parseExpression(
       },
       params,
     );
+  } else if (lex.type === DynamicLexemeType.NUMBER_LITERAL) {
+    moveAfterLex(code, point, lex);
+
+    body = parseNext(
+      code,
+      point,
+      {
+        type: AstNodeType.NUMBER_LITERAL,
+        value: lex.value,
+      },
+      params,
+    );
   } else if (lex.type === DynamicLexemeType.IDENTIFIER) {
     moveAfterLex(code, point, lex);
     body = parseNext(
@@ -275,6 +305,10 @@ function parseExpression(
       },
       params,
     );
+  } else if (lex.type === StaticLexemeType.CURLY_BRACKET_LEFT) {
+    const obj = parseObjectLiteral(code, point);
+    console.log('=== OBJ:', obj);
+    body = parseNext(code, point, obj, params);
   }
 
   if (!body) {
@@ -284,6 +318,63 @@ function parseExpression(
   return {
     type: AstNodeType.EXPRESSION,
     body,
+  };
+}
+
+function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
+  const startObjectLex = forceGetNextLexemeNode(code, point);
+
+  if (startObjectLex.type !== StaticLexemeType.CURLY_BRACKET_LEFT) {
+    throw parsingError(code, point);
+  }
+
+  const fields = [];
+
+  while (true) {
+    const fieldNameLex = forceGetNextLexemeNode(code, point);
+
+    if (fieldNameLex.type === StaticLexemeType.CURLY_BRACKET_RIGHT) {
+      break;
+    }
+
+    if (fieldNameLex.type !== DynamicLexemeType.IDENTIFIER) {
+      throw parsingError(code, point);
+    }
+
+    const nextLex = forceGetNextLexemeNode(code, point);
+
+    let value;
+
+    if (nextLex.type === StaticLexemeType.LIST_DELIMITER) {
+      value = {
+        type: AstNodeType.IDENTIFIER,
+        value: fieldNameLex.value,
+      };
+    } else if (nextLex.type === StaticLexemeType.COLON) {
+      value = parseExpression(code, point, { stopOnListDelimiter: true });
+
+      const nextLex = forceLookupNextLexemeNode(code, point);
+
+      if (nextLex.type !== StaticLexemeType.CURLY_BRACKET_RIGHT) {
+        if (nextLex.type === StaticLexemeType.LIST_DELIMITER) {
+          moveAfterLex(code, point, nextLex);
+        } else {
+          throw parsingError(code, point);
+        }
+      }
+    } else {
+      throw parsingError(code, point);
+    }
+
+    fields.push({
+      fieldName: fieldNameLex.value,
+      value,
+    });
+  }
+
+  return {
+    type: AstNodeType.OBJECT_LITERAL,
+    fields,
   };
 }
 

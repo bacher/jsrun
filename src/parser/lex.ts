@@ -24,6 +24,7 @@ export enum StaticLexemeType {
   MATH_DIV_ASSIGN = 'MATH_DIV_ASSIGN',
   STATEMENT_DELIMITER = 'STATEMENT_DELIMITER',
   LIST_DELIMITER = 'LIST_DELIMITER',
+  COLON = 'COLON',
 }
 
 export enum DynamicLexemeType {
@@ -54,6 +55,7 @@ const staticLexMatch = {
   [StaticLexemeType.MATH_INC]: '++',
   [StaticLexemeType.MATH_DEC]: '--',
   [StaticLexemeType.STATEMENT_DELIMITER]: ';',
+  [StaticLexemeType.COLON]: ':',
   [StaticLexemeType.LIST_DELIMITER]: ',',
 };
 
@@ -105,7 +107,7 @@ export function getNextLexemeNode(
     };
   }
 
-  const mathMatch = rest.match(/^([<>+*/=-]+)/);
+  const mathMatch = rest.match(/^([<>+*/=:,-]+)/);
 
   if (mathMatch) {
     const expression = mathMatch[0];
@@ -157,8 +159,27 @@ export function getNextLexemeNode(
     };
   }
 
+  if (/^\d/.test(char)) {
+    const numberMatch = rest.match(/^\d+(?:\.\d+)?/);
+
+    if (!numberMatch) {
+      throw parsingError(rest);
+    }
+
+    const numberString = numberMatch[0];
+
+    return {
+      type: DynamicLexemeType.NUMBER_LITERAL,
+      value: numberString,
+      pos: {
+        charIndex: point.charIndex,
+        charLength: numberString.length,
+      },
+    };
+  }
+
   if (char === '.') {
-    if (/\d/.test(rest.charAt(1))) {
+    if (/^\d/.test(rest.charAt(1))) {
       const valueRest = rest.substring(1);
 
       const numberMatch = valueRest.match(/^\d+/);
@@ -209,7 +230,7 @@ function parseIdentifier(
   point: Point,
 ): IdentifierNode | undefined {
   const rest = code.substring(point.charIndex);
-  const identifierMatch = rest.match(/^[\w_][\w\d_]*/);
+  const identifierMatch = rest.match(/^[A-Za-z_][A-Za-z\d_]*/);
 
   if (identifierMatch) {
     const identifier = identifierMatch[0];
