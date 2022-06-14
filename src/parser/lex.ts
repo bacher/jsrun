@@ -138,9 +138,9 @@ export function getNextLexemeNode(
     let stringMatch: RegExpMatchArray | null = null;
 
     if (char === "'") {
-      stringMatch = stringStart.match(/^([^\n]*)(?<!\\)'/);
+      stringMatch = stringStart.match(/^([^\n]*?)(?<!\\)'/);
     } else if (char === '"') {
-      stringMatch = stringStart.match(/^([^\n]*)(?<!\\)"/);
+      stringMatch = stringStart.match(/^([^\n]*?)(?<!\\)"/);
     }
 
     if (!stringMatch) {

@@ -2,6 +2,7 @@ import {
   DynamicLexemeType,
   getNextLexemeNode,
   LexemeNode,
+  LexemeType,
   skipEmptySpace,
   StaticLexemeType,
 } from './lex';
@@ -118,9 +119,18 @@ type AstFunctionStatementNode = {
   body: AstStatementNode[];
 };
 
+type AstFieldKeyValueNode = {
+  field:
+    | AstIdentifierNode
+    | AstStringLiteralNode
+    | AstNumberLiteralNode
+    | AstExpressionNode;
+  value: AstExpressionNode;
+};
+
 type AstObjectLiteralNode = {
   type: AstNodeType.OBJECT_LITERAL;
-  fields: any;
+  fields: AstFieldKeyValueNode[];
 };
 
 export type AstSourceFileNode = {
@@ -329,6 +339,30 @@ function parseExpression(
   };
 }
 
+function convertLiteralToAst(
+  lex: LexemeNode,
+): AstIdentifierNode | AstStringLiteralNode | AstNumberLiteralNode {
+  switch (lex.type) {
+    case DynamicLexemeType.IDENTIFIER:
+      return {
+        type: AstNodeType.IDENTIFIER,
+        value: lex.value,
+      };
+    case DynamicLexemeType.NUMBER_LITERAL:
+      return {
+        type: AstNodeType.NUMBER_LITERAL,
+        value: lex.value,
+      };
+    case DynamicLexemeType.STRING_LITERAL:
+      return {
+        type: AstNodeType.STRING_LITERAL,
+        value: lex.value,
+      };
+    default:
+      throw new Error(`Invalid type ${lex.type}`);
+  }
+}
+
 function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
   const startObjectLex = forceGetNextLexemeNode(code, point);
 
@@ -336,7 +370,7 @@ function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
     throw parsingError(code, point);
   }
 
-  const fields = [];
+  const fields: AstFieldKeyValueNode[] = [];
 
   while (true) {
     const fieldNameLex = forceGetNextLexemeNode(code, point);
@@ -345,18 +379,46 @@ function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
       break;
     }
 
-    if (fieldNameLex.type !== DynamicLexemeType.IDENTIFIER) {
+    let fieldName: AstNode;
+    let potentialBody: AstIdentifierNode | undefined;
+
+    if (fieldNameLex.type === StaticLexemeType.SQUARE_BRACKET_LEFT) {
+      console.log('BEFORE');
+
+      fieldName = parseExpression(code, point);
+
+      console.log('WHAT?', fieldName);
+
+      ensureNextLex(code, point, StaticLexemeType.SQUARE_BRACKET_RIGHT);
+    } else if (
+      fieldNameLex.type === DynamicLexemeType.IDENTIFIER ||
+      fieldNameLex.type === DynamicLexemeType.STRING_LITERAL ||
+      fieldNameLex.type === DynamicLexemeType.NUMBER_LITERAL
+    ) {
+      fieldName = convertLiteralToAst(fieldNameLex);
+
+      if (fieldNameLex.type === DynamicLexemeType.IDENTIFIER) {
+        potentialBody = {
+          type: AstNodeType.IDENTIFIER,
+          value: fieldNameLex.value,
+        };
+      }
+    } else {
       throw parsingError(code, point);
     }
 
     const nextLex = forceGetNextLexemeNode(code, point);
 
-    let value;
+    let value: AstExpressionNode;
 
     if (nextLex.type === StaticLexemeType.LIST_DELIMITER) {
+      if (!potentialBody) {
+        throw parsingError(code, point);
+      }
+
       value = {
-        type: AstNodeType.IDENTIFIER,
-        value: fieldNameLex.value,
+        type: AstNodeType.EXPRESSION,
+        body: potentialBody,
       };
     } else if (nextLex.type === StaticLexemeType.COLON) {
       value = parseExpression(code, point, { stopOnListDelimiter: true });
@@ -375,7 +437,7 @@ function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
     }
 
     fields.push({
-      fieldName: fieldNameLex.value,
+      field: fieldName,
       value,
     });
   }
@@ -674,6 +736,15 @@ function forceGetNextLexemeNode(code: string, point: Point): LexemeNode {
 
   return node;
 }
+
+function ensureNextLex(code: string, point: Point, lexType: LexemeType): void {
+  const lex = forceGetNextLexemeNode(code, point);
+
+  if (lex.type !== lexType) {
+    throw new Error(`Next lexeme should be ${lexType} but see ${lex.type}`);
+  }
+}
+
 function moveAfterLex(code: string, point: Point, node: LexemeNode) {
   point.charIndex = node.pos.charIndex + node.pos.charLength;
   skipEmptySpace(code, point);
