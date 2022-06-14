@@ -28,6 +28,7 @@ enum AstNodeType {
   STATEMENT = 'STATEMENT',
   IDENTIFIER = 'IDENTIFIER',
   FIELD_ACCESS = 'FIELD_ACCESS',
+  INDEXED_FIELD_ACCESS = 'INDEXED_FIELD_ACCESS',
   CALL = 'CALL',
   STRING_LITERAL = 'STRING_LITERAL',
   NUMBER_LITERAL = 'NUMBER_LITERAL',
@@ -47,7 +48,8 @@ type AstNode =
   | AstNumberLiteralNode
   | AstSequentialNode
   | AstFunctionStatementNode
-  | AstObjectLiteralNode;
+  | AstObjectLiteralNode
+  | AstIndexedFieldAccessNode;
 
 type AstDefineVariableNode = {
   type: AstNodeType.DEFINE_VARIABLE;
@@ -79,6 +81,12 @@ type AstFieldAccessNode = {
   type: AstNodeType.FIELD_ACCESS;
   host: AstNode;
   field: string;
+};
+
+type AstIndexedFieldAccessNode = {
+  type: AstNodeType.INDEXED_FIELD_ACCESS;
+  host: AstNode;
+  fieldExpression: AstExpressionNode;
 };
 
 type AstCallNode = {
@@ -386,12 +394,11 @@ function parseNext(
 ): AstNode {
   const lex = forceLookupNextLexemeNode(code, point);
 
-  if (lex.type === StaticLexemeType.STATEMENT_DELIMITER) {
-    // moveAfterLex(code, point, lex);
-    return node;
-  }
-
-  if (lex.type === StaticLexemeType.ROUND_BRACKET_RIGHT) {
+  if (
+    lex.type === StaticLexemeType.STATEMENT_DELIMITER ||
+    lex.type === StaticLexemeType.ROUND_BRACKET_RIGHT ||
+    lex.type === StaticLexemeType.SQUARE_BRACKET_RIGHT
+  ) {
     return node;
   }
 
@@ -418,6 +425,29 @@ function parseNext(
         type: AstNodeType.FIELD_ACCESS,
         host: node,
         field: lex.value,
+      },
+      params,
+    );
+  }
+
+  if (lex.type === StaticLexemeType.SQUARE_BRACKET_LEFT) {
+    moveAfterLex(code, point, lex);
+
+    const expression = parseExpression(code, point);
+
+    const endLex = forceGetNextLexemeNode(code, point);
+
+    if (endLex.type !== StaticLexemeType.SQUARE_BRACKET_RIGHT) {
+      throw parsingError(code, point);
+    }
+
+    return parseNext(
+      code,
+      point,
+      {
+        type: AstNodeType.INDEXED_FIELD_ACCESS,
+        host: node,
+        fieldExpression: expression,
       },
       params,
     );
