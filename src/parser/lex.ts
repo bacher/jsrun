@@ -95,7 +95,7 @@ export function getNextLexemeNode(
   const rest = code.substring(point.charIndex);
   const char = code.charAt(point.charIndex);
 
-  console.log('Parse:', rest.split('\n')[0]);
+  // console.log('Parse:', rest.split('\n')[0]);
 
   if (/^[;(){}[\]]$/.test(char)) {
     return {

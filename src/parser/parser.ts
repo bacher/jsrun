@@ -23,7 +23,7 @@ const keywords = [
   'export',
 ];
 
-enum AstNodeType {
+export enum AstNodeType {
   DEFINE_VARIABLE = 'DEFINE_VARIABLE',
   EXPRESSION = 'EXPRESSION',
   STATEMENT = 'STATEMENT',
@@ -59,18 +59,14 @@ type AstDefineVariableNode = {
   initialValue: AstExpressionNode | undefined;
 };
 
-type AstExpressionNode = {
+export type AstExpressionNode = {
   type: AstNodeType.EXPRESSION;
   body: AstNode;
 };
 
-type AstStatementNode = {
+export type AstStatementNode = {
   type: AstNodeType.STATEMENT;
-  body:
-    | AstDefineVariableNode
-    | AstExpressionNode
-    | AstFunctionStatementNode
-    | AstObjectLiteralNode;
+  body: AstDefineVariableNode | AstExpressionNode | AstFunctionStatementNode;
 };
 
 type AstIdentifierNode = {
@@ -112,19 +108,21 @@ type AstSequentialNode = {
   right: AstNode;
 };
 
-type AstFunctionStatementNode = {
+export type AstFunctionStatementNode = {
   type: AstNodeType.FUNCTION_STATEMENT;
   functionName: string;
   arguments: AstIdentifierNode[];
   body: AstStatementNode[];
 };
 
-type AstFieldKeyValueNode = {
-  field:
-    | AstIdentifierNode
-    | AstStringLiteralNode
-    | AstNumberLiteralNode
-    | AstExpressionNode;
+export type FieldNameNode =
+  | AstIdentifierNode
+  | AstStringLiteralNode
+  | AstNumberLiteralNode
+  | AstExpressionNode;
+
+export type AstFieldKeyValueNode = {
+  field: FieldNameNode;
   value: AstExpressionNode;
 };
 
