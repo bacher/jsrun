@@ -103,7 +103,7 @@ type AstStringLiteralNode = {
 
 type AstNumberLiteralNode = {
   type: AstNodeType.NUMBER_LITERAL;
-  value: string;
+  value: number;
 };
 
 type AstSequentialNode = {
@@ -308,7 +308,7 @@ function parseExpression(
       point,
       {
         type: AstNodeType.NUMBER_LITERAL,
-        value: lex.value,
+        value: Number.parseFloat(lex.value),
       },
       params,
     );
@@ -325,7 +325,6 @@ function parseExpression(
     );
   } else if (lex.type === StaticLexemeType.CURLY_BRACKET_LEFT) {
     const obj = parseObjectLiteral(code, point);
-    console.log('=== OBJ:', obj);
     body = parseNext(code, point, obj, params);
   }
 
@@ -351,7 +350,7 @@ function convertLiteralToAst(
     case DynamicLexemeType.NUMBER_LITERAL:
       return {
         type: AstNodeType.NUMBER_LITERAL,
-        value: lex.value,
+        value: Number.parseFloat(lex.value),
       };
     case DynamicLexemeType.STRING_LITERAL:
       return {
@@ -383,11 +382,7 @@ function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
     let potentialBody: AstIdentifierNode | undefined;
 
     if (fieldNameLex.type === StaticLexemeType.SQUARE_BRACKET_LEFT) {
-      console.log('BEFORE');
-
       fieldName = parseExpression(code, point);
-
-      console.log('WHAT?', fieldName);
 
       ensureNextLex(code, point, StaticLexemeType.SQUARE_BRACKET_RIGHT);
     } else if (
