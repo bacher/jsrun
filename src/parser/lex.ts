@@ -25,6 +25,7 @@ export enum StaticLexemeType {
   STATEMENT_DELIMITER = 'STATEMENT_DELIMITER',
   LIST_DELIMITER = 'LIST_DELIMITER',
   COLON = 'COLON',
+  LAMBDA_ARROW = 'LAMBDA_ARROW',
 }
 
 export enum DynamicLexemeType {
@@ -57,6 +58,7 @@ const staticLexMatch = {
   [StaticLexemeType.STATEMENT_DELIMITER]: ';',
   [StaticLexemeType.COLON]: ':',
   [StaticLexemeType.LIST_DELIMITER]: ',',
+  [StaticLexemeType.LAMBDA_ARROW]: '=>',
 };
 
 type IdentifierNode = {

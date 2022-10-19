@@ -35,6 +35,7 @@ export enum AstNodeType {
   NUMBER_LITERAL = 'NUMBER_LITERAL',
   SEQUENTIAL = 'SEQUENTIAL',
   FUNCTION_STATEMENT = 'FUNCTION_STATEMENT',
+  ARROW_FUNCTION = 'ARROW_FUNCTION',
   SOURCE_FILE = 'SOURCE_FILE',
   OBJECT_LITERAL = 'OBJECT_LITERAL',
 }
@@ -49,6 +50,7 @@ type AstNode =
   | AstNumberLiteralNode
   | AstSequentialNode
   | AstFunctionStatementNode
+  | AstArrowFunctionNode
   | AstObjectLiteralNode
   | AstIndexedFieldAccessNode;
 
@@ -113,6 +115,13 @@ export type AstFunctionStatementNode = {
   functionName: string;
   arguments: AstIdentifierNode[];
   body: AstStatementNode[];
+};
+
+export type AstArrowFunctionNode = {
+  type: AstNodeType.ARROW_FUNCTION;
+  // TODO: Arguments type ?? (deconstuction, default values)
+  arguments: AstIdentifierNode[] | any;
+  body: AstExpressionNode | AstStatementNode[];
 };
 
 export type FieldNameNode =
@@ -220,7 +229,26 @@ function parseStatement(code: string, point: Point): AstStatementNode {
     }
   }
 
-  throw parsingError(code, point);
+  const expressionStatement: AstStatementNode = {
+    type: AstNodeType.STATEMENT,
+    body: parseExpression(code, point),
+  };
+
+  skipSemiColons(code, point);
+
+  return expressionStatement;
+}
+
+function skipSemiColons(code: string, point: Point): void {
+  while (true) {
+    const nextLex = getNextLexemeNode(code, point);
+
+    if (!nextLex || nextLex.type !== StaticLexemeType.STATEMENT_DELIMITER) {
+      break;
+    }
+
+    moveAfterLex(code, point, nextLex);
+  }
 }
 
 function parseDefVarStatement(
@@ -324,6 +352,46 @@ function parseExpression(
   } else if (lex.type === StaticLexemeType.CURLY_BRACKET_LEFT) {
     const obj = parseObjectLiteral(code, point);
     body = parseNext(code, point, obj, params);
+  } else if (lex.type === StaticLexemeType.ROUND_BRACKET_LEFT) {
+    moveAfterLex(code, point, lex);
+
+    body = parseExpression(code, point);
+
+    console.log('body!!!', body);
+
+    const ending = forceLookupNextLexemeNode(code, point);
+
+    if (ending.type !== StaticLexemeType.ROUND_BRACKET_RIGHT) {
+      throw parsingError(code, point);
+    }
+
+    moveAfterLex(code, point, ending);
+
+    const nextLex = getNextLexemeNode(code, point);
+
+    console.log('nextLex', nextLex);
+
+    if (nextLex && nextLex.type === StaticLexemeType.LAMBDA_ARROW) {
+      moveAfterLex(code, point, nextLex);
+
+      const argumentsNode = convertToArgumentsList(body);
+
+      const bodyStartLex = forceLookupNextLexemeNode(code, point);
+
+      let arrowBody: AstExpressionNode | AstStatementNode[];
+
+      if (bodyStartLex.type === StaticLexemeType.CURLY_BRACKET_LEFT) {
+        arrowBody = parseStatementBlock(code, point);
+      } else {
+        arrowBody = parseExpression(code, point);
+      }
+
+      body = {
+        type: AstNodeType.ARROW_FUNCTION,
+        arguments: argumentsNode,
+        body: arrowBody,
+      };
+    }
   }
 
   if (!body) {
@@ -334,6 +402,11 @@ function parseExpression(
     type: AstNodeType.EXPRESSION,
     body,
   };
+}
+
+function convertToArgumentsList(astNode: AstNode): AstNode {
+  // TODO: check
+  return astNode;
 }
 
 function convertLiteralToAst(
@@ -704,10 +777,12 @@ function parseFullIdentifier(
 
 function parsingError(code: string, point: Point): Error {
   const codeExample = code
-    .substring(point.charIndex - 5, 20)
+    .substring(point.charIndex - 5, point.charIndex + 15)
     .replace(/\n/g, ' ');
 
-  return new Error(`Invalid symbols at: ${codeExample}`);
+  console.error(`Error at: ${codeExample}\n${' '.repeat(15)}^`);
+
+  return new Error(`Invalid symbols at :${point.charIndex}`);
 }
 
 function forceLookupNextLexemeNode(code: string, point: Point): LexemeNode {

@@ -6,8 +6,6 @@ import { runSourceFile } from './engine/jsrun';
 
 const argParams: Record<string, boolean> = {};
 
-console.log('ARGV', process.argv0);
-
 for (const str of takeRightWhile(process.argv, (str) => str.startsWith('--'))) {
   argParams[str.replace(/^--/, '')] = true;
 }

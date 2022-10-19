@@ -7,7 +7,8 @@
     "build": "react-scripts build",
     "test": "react-scripts test",
     "cli": "ts-node --project tsconfig.node.json src/main.ts",
-    "cli:dev": "ts-node --project tsconfig.node.json --logError src/main.ts"
+    "cli:dev": "ts-node --project tsconfig.node.json --logError src/main.ts",
+    "cli:dev:prase": "ts-node --project tsconfig.node.json --logError src/main.ts --parse"
   },
   "eslintConfig": {
     "extends": [
