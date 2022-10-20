@@ -33,7 +33,7 @@ export enum AstNodeType {
   CALL = 'CALL',
   STRING_LITERAL = 'STRING_LITERAL',
   NUMBER_LITERAL = 'NUMBER_LITERAL',
-  SEQUENTIAL = 'SEQUENTIAL',
+  SEQUENTIAL_LIST = 'SEQUENTIAL_LIST',
   FUNCTION_STATEMENT = 'FUNCTION_STATEMENT',
   ARROW_FUNCTION = 'ARROW_FUNCTION',
   SOURCE_FILE = 'SOURCE_FILE',
@@ -54,7 +54,7 @@ type AstNode =
   | AstCallNode
   | AstStringLiteralNode
   | AstNumberLiteralNode
-  | AstSequentialNode
+  | AstSequentialListNode
   | AstFunctionStatementNode
   | AstArrowFunctionNode
   | AstObjectLiteralNode
@@ -112,10 +112,9 @@ type AstNumberLiteralNode = {
   value: number;
 };
 
-type AstSequentialNode = {
-  type: AstNodeType.SEQUENTIAL;
-  left: AstNode;
-  right: AstNode;
+type AstSequentialListNode = {
+  type: AstNodeType.SEQUENTIAL_LIST;
+  list: AstNode[];
 };
 
 export type AstFunctionStatementNode = {
@@ -447,9 +446,17 @@ function parseExpression(
     throw parsingError(code, point);
   }
 
+  return makeExpression(body);
+}
+
+function makeExpression(astNode: AstNode): AstExpressionNode {
+  if (astNode.type === AstNodeType.EXPRESSION) {
+    return astNode;
+  }
+
   return {
     type: AstNodeType.EXPRESSION,
-    body,
+    body: astNode,
   };
 }
 
@@ -488,18 +495,28 @@ function convertToDestructuring(
 
 function unwrapExpression(astNode: AstNode): AstNode {
   if (astNode.type === AstNodeType.EXPRESSION) {
-    return astNode.body;
+    return unwrapExpression(astNode.body);
   }
 
   return astNode;
 }
 
+function desequentise(astNode: AstNode): AstNode[] {
+  astNode = unwrapExpression(astNode);
+
+  if (astNode.type !== AstNodeType.SEQUENTIAL_LIST) {
+    return [unwrapExpression(astNode)];
+  }
+
+  return astNode.list;
+}
+
 function sequentise(astNode: AstNode): AstNode[] {
-  if (astNode.type !== AstNodeType.SEQUENTIAL) {
+  if (astNode.type !== AstNodeType.SEQUENTIAL_LIST) {
     return [astNode];
   }
 
-  return [astNode.left, ...sequentise(unwrapExpression(astNode.right))];
+  return astNode.list;
 }
 
 function convertToArgumentsList(astNode: AstNode): AstArgumentsListNode {
@@ -685,9 +702,8 @@ function parseNext(
     moveAfterLex(code, point, lex);
 
     return {
-      type: AstNodeType.SEQUENTIAL,
-      left: node,
-      right: parseExpression(code, point),
+      type: AstNodeType.SEQUENTIAL_LIST,
+      list: [node, ...desequentise(parseExpression(code, point))],
     };
   }
 
