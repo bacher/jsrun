@@ -39,12 +39,15 @@ export enum AstNodeType {
   SOURCE_FILE = 'SOURCE_FILE',
   OBJECT_LITERAL = 'OBJECT_LITERAL',
   OBJECT_DESTRUCTURING = 'OBJECT_DESTRUCTURING',
+  ASSIGN = 'ASSIGN',
   OBJECT_DESTRUCTURING_FIELD = 'OBJECT_DESTRUCTURING_FIELD',
   ARGUMENTS_LIST = 'ARGUMENTS_LIST',
+  ARGUMENT = 'ARGUMENT',
 }
 
 type AstNode =
   | AstDefineVariableNode
+  | AstAssignNode
   | AstExpressionNode
   | AstFieldAccessNode
   | AstIdentifierNode
@@ -127,6 +130,18 @@ export type AstObjectDestructuringNode = {
   fields: AstObjectDestructuringFieldNode[];
 };
 
+export type AstAssignNode = {
+  type: AstNodeType.ASSIGN;
+  target: AstIdentifierNode | AstObjectDestructuringNode;
+  expression: AstExpressionNode;
+};
+
+export type AstArgumentNode = {
+  type: AstNodeType.ARGUMENT;
+  argument: AstIdentifierNode | AstObjectDestructuringNode;
+  value?: AstExpressionNode;
+};
+
 export type AstObjectDestructuringFieldNode = {
   type: AstNodeType.OBJECT_DESTRUCTURING_FIELD;
   sourceField: AstIdentifierNode;
@@ -135,7 +150,7 @@ export type AstObjectDestructuringFieldNode = {
 
 export type AstArgumentsListNode = {
   type: AstNodeType.ARGUMENTS_LIST;
-  arguments: (AstIdentifierNode | AstObjectDestructuringNode)[];
+  arguments: AstArgumentNode[];
 };
 
 export type AstArrowFunctionNode = {
@@ -370,8 +385,24 @@ function parseExpression(
       params,
     );
   } else if (lex.type === StaticLexemeType.CURLY_BRACKET_LEFT) {
-    const obj = parseObjectLiteral(code, point);
-    body = parseNext(code, point, obj, params);
+    let field: AstObjectLiteralNode | AstAssignNode = parseObjectLiteral(
+      code,
+      point,
+    );
+
+    const nextLex = forceLookupNextLexemeNode(code, point);
+    if (nextLex.type === StaticLexemeType.MATH_ASSIGN) {
+      moveAfterLex(code, point, nextLex);
+      const value = parseExpression(code, point, { stopOnListDelimiter: true });
+
+      field = {
+        type: AstNodeType.ASSIGN,
+        target: convertToDestructuring(field),
+        expression: value,
+      };
+    }
+
+    body = parseNext(code, point, field, params);
   } else if (lex.type === StaticLexemeType.ROUND_BRACKET_LEFT) {
     moveAfterLex(code, point, lex);
 
@@ -482,16 +513,35 @@ function convertToArgumentsList(astNode: AstNode): AstArgumentsListNode {
     type: AstNodeType.ARGUMENTS_LIST,
     arguments: sequentise(astNode.body).map((astNode) => {
       if (astNode.type === AstNodeType.IDENTIFIER) {
-        return astNode;
+        return {
+          type: AstNodeType.ARGUMENT,
+          argument: astNode,
+        };
       }
 
       if (astNode.type === AstNodeType.OBJECT_LITERAL) {
-        return convertToDestructuring(astNode);
+        return {
+          type: AstNodeType.ARGUMENT,
+          argument: convertToDestructuring(astNode),
+        };
       }
 
-      console.log('astNode??? =', astNode);
+      if (astNode.type === AstNodeType.ASSIGN) {
+        if (
+          astNode.target.type !== AstNodeType.IDENTIFIER &&
+          astNode.target.type !== AstNodeType.OBJECT_DESTRUCTURING
+        ) {
+          throw new Error();
+        }
 
-      throw new Error('Should be object literal');
+        return {
+          type: AstNodeType.ARGUMENT,
+          argument: astNode.target,
+          value: astNode.expression,
+        };
+      }
+
+      throw new Error(`Unsuitable lexem ${astNode.type}`);
     }),
   };
 }
