@@ -613,8 +613,12 @@ function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
     const nextLex = forceGetNextLexemeNode(code, point);
 
     let value: AstExpressionNode;
+    let stop = false;
 
-    if (nextLex.type === StaticLexemeType.LIST_DELIMITER) {
+    if (
+      nextLex.type === StaticLexemeType.CURLY_BRACKET_RIGHT ||
+      nextLex.type === StaticLexemeType.LIST_DELIMITER
+    ) {
       if (!potentialBody) {
         throw parsingError(code, point);
       }
@@ -623,6 +627,7 @@ function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
         type: AstNodeType.EXPRESSION,
         body: potentialBody,
       };
+      stop = nextLex.type === StaticLexemeType.CURLY_BRACKET_RIGHT;
     } else if (nextLex.type === StaticLexemeType.COLON) {
       value = parseExpression(code, point, { stopOnListDelimiter: true });
 
@@ -643,6 +648,10 @@ function parseObjectLiteral(code: string, point: Point): AstObjectLiteralNode {
       field: fieldName,
       value,
     });
+
+    if (stop) {
+      break;
+    }
   }
 
   return {
