@@ -38,6 +38,9 @@ export enum AstNodeType {
   ARROW_FUNCTION = 'ARROW_FUNCTION',
   SOURCE_FILE = 'SOURCE_FILE',
   OBJECT_LITERAL = 'OBJECT_LITERAL',
+  OBJECT_DESTRUCTURING = 'OBJECT_DESTRUCTURING',
+  OBJECT_DESTRUCTURING_FIELD = 'OBJECT_DESTRUCTURING_FIELD',
+  ARGUMENTS_LIST = 'ARGUMENTS_LIST',
 }
 
 type AstNode =
@@ -52,7 +55,9 @@ type AstNode =
   | AstFunctionStatementNode
   | AstArrowFunctionNode
   | AstObjectLiteralNode
-  | AstIndexedFieldAccessNode;
+  | AstIndexedFieldAccessNode
+  | AstObjectDestructuringNode
+  | AstArgumentsListNode;
 
 type AstDefineVariableNode = {
   type: AstNodeType.DEFINE_VARIABLE;
@@ -117,10 +122,25 @@ export type AstFunctionStatementNode = {
   body: AstStatementNode[];
 };
 
+export type AstObjectDestructuringNode = {
+  type: AstNodeType.OBJECT_DESTRUCTURING;
+  fields: AstObjectDestructuringFieldNode[];
+};
+
+export type AstObjectDestructuringFieldNode = {
+  type: AstNodeType.OBJECT_DESTRUCTURING_FIELD;
+  sourceField: AstIdentifierNode;
+  destination: AstIdentifierNode | AstObjectDestructuringNode;
+};
+
+export type AstArgumentsListNode = {
+  type: AstNodeType.ARGUMENTS_LIST;
+  arguments: (AstIdentifierNode | AstObjectDestructuringNode)[];
+};
+
 export type AstArrowFunctionNode = {
   type: AstNodeType.ARROW_FUNCTION;
-  // TODO: Arguments type ?? (deconstuction, default values)
-  arguments: AstIdentifierNode[] | any;
+  arguments: AstArgumentsListNode;
   body: AstExpressionNode | AstStatementNode[];
 };
 
@@ -357,8 +377,6 @@ function parseExpression(
 
     body = parseExpression(code, point);
 
-    console.log('body!!!', body);
-
     const ending = forceLookupNextLexemeNode(code, point);
 
     if (ending.type !== StaticLexemeType.ROUND_BRACKET_RIGHT) {
@@ -404,9 +422,78 @@ function parseExpression(
   };
 }
 
-function convertToArgumentsList(astNode: AstNode): AstNode {
-  // TODO: check
+function convertToDestructuring(
+  astNode: AstObjectLiteralNode,
+): AstObjectDestructuringNode {
+  const fields: AstObjectDestructuringFieldNode[] = astNode.fields.map(
+    (field) => {
+      let destination: AstIdentifierNode | AstObjectDestructuringNode;
+
+      if (field.field.type !== AstNodeType.IDENTIFIER) {
+        throw new Error();
+      }
+
+      if (field.value.body.type === AstNodeType.IDENTIFIER) {
+        destination = field.value.body;
+      } else if (field.value.body.type === AstNodeType.OBJECT_LITERAL) {
+        destination = convertToDestructuring(field.value.body);
+      } else {
+        throw new Error();
+      }
+
+      return {
+        type: AstNodeType.OBJECT_DESTRUCTURING_FIELD,
+        sourceField: field.field,
+        destination,
+      };
+    },
+  );
+
+  return {
+    type: AstNodeType.OBJECT_DESTRUCTURING,
+    fields,
+  };
+}
+
+function unwrapExpression(astNode: AstNode): AstNode {
+  if (astNode.type === AstNodeType.EXPRESSION) {
+    return astNode.body;
+  }
+
   return astNode;
+}
+
+function sequentise(astNode: AstNode): AstNode[] {
+  if (astNode.type !== AstNodeType.SEQUENTIAL) {
+    return [astNode];
+  }
+
+  return [astNode.left, ...sequentise(unwrapExpression(astNode.right))];
+}
+
+function convertToArgumentsList(astNode: AstNode): AstArgumentsListNode {
+  console.log('===', JSON.stringify(astNode, null, 2));
+
+  if (astNode.type !== AstNodeType.EXPRESSION) {
+    throw new Error('Should be expression');
+  }
+
+  return {
+    type: AstNodeType.ARGUMENTS_LIST,
+    arguments: sequentise(astNode.body).map((astNode) => {
+      if (astNode.type === AstNodeType.IDENTIFIER) {
+        return astNode;
+      }
+
+      if (astNode.type === AstNodeType.OBJECT_LITERAL) {
+        return convertToDestructuring(astNode);
+      }
+
+      console.log('astNode??? =', astNode);
+
+      throw new Error('Should be object literal');
+    }),
+  };
 }
 
 function convertLiteralToAst(
@@ -525,7 +612,8 @@ function parseNext(
   if (
     lex.type === StaticLexemeType.STATEMENT_DELIMITER ||
     lex.type === StaticLexemeType.ROUND_BRACKET_RIGHT ||
-    lex.type === StaticLexemeType.SQUARE_BRACKET_RIGHT
+    lex.type === StaticLexemeType.SQUARE_BRACKET_RIGHT ||
+    lex.type === StaticLexemeType.CURLY_BRACKET_RIGHT
   ) {
     return node;
   }
@@ -782,7 +870,9 @@ function parsingError(code: string, point: Point): Error {
 
   console.error(`Error at: ${codeExample}\n${' '.repeat(15)}^`);
 
-  return new Error(`Invalid symbols at :${point.charIndex}`);
+  const lex = forceLookupNextLexemeNode(code, point);
+
+  return new Error(`Invalid symbols at :${point.charIndex} ${lex.type}`);
 }
 
 function forceLookupNextLexemeNode(code: string, point: Point): LexemeNode {
